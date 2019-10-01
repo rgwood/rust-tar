@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::io::prelude::*;
-// use std::io::ErrorKind;
 use std::env;
 use std::str;
 
@@ -28,39 +27,43 @@ fn main() -> std::io::Result<()> {
     println!("Read all {} bytes from file '{}' successfully ", file_size_in_bytes, file_name);
 
     let tar_header: &[u8] = &file_contents[..512];
-    let header_file_name_section = &tar_header[..99];
 
-    // let file_name_length_in_bytes = find_last_byte_in_null_terminated_sequence(header_file_name_section);
-    // let header_file_name = &header_file_name_section[..file_name_length_in_bytes];
-
-    let header_file_name = extract_value_from_null_terminated_sequence(header_file_name_section);
+    let header_file_name = extract_value_from_null_terminated_sequence(&tar_header[..99]);
 
     println!("File name from tarball: '{}'", bytes_to_str(header_file_name));
     
     // TODO: verify checksum.
-    let octal_checksum = bytes_to_str(&file_contents[148..154]);
+
+    println!("Decimal checksum: {}", read_header_checksum_in_decimal(tar_header));
+    println!("Calculated checksum: {}", calculate_header_checksum(tar_header));
+
+    Ok(())
+}
+
+// Tarball header checksums are stored in octal (!?!?), convert to decimal to make our life easier
+fn read_header_checksum_in_decimal(header: &[u8]) -> u32 {
+    let octal_checksum = bytes_to_str(&header[148..154]);
     println!("Octal checksum: '{}'", octal_checksum);
-    let checksum = match u64::from_str_radix(octal_checksum, 8) {
+    match u32::from_str_radix(octal_checksum, 8) {
         Ok(n) => n,
         Err(_) => {panic!("Could not parse octal checksum")}
-    };
-    println!("Decimal checksum: {}", checksum);
+    }
+}
 
+fn calculate_header_checksum(header: &[u8]) -> u32 {
     let mut calculated_checksum: u32 = 0;
-    for b in &tar_header[..148] {
+    for b in &header[..148] {
         calculated_checksum += *b as u32;
     }
 
     // checksum bytes are taken to be ASCII spaces (decimal value 32)
     calculated_checksum += 8 * 32;
     
-    for b in &tar_header[156..512] {
+    for b in &header[156..512] {
         calculated_checksum += *b as u32;
     }
 
-    println!("Calculated checksum: {}", calculated_checksum);
-
-    Ok(())
+    calculated_checksum
 }
 
 fn bytes_to_str(bytes: &[u8]) -> &str {
