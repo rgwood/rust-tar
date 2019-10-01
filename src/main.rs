@@ -1,41 +1,59 @@
 use std::fs::File;
 use std::io::prelude::*;
-use std::env;
 use std::str;
+use structopt::StructOpt;
+
+#[derive(StructOpt)]
+struct CliParams {
+    /// Extract mode: extract an archive to disk
+    #[structopt(short = "x")]
+    extract_mode: bool,
+    /// List mode: list archive contents
+    #[structopt(short = "t")]
+    list_mode: bool,
+    /// The path to a tarball to extract
+    #[structopt(required_if("extract_mode", "true"))]
+    file_name: String
+}
 
 fn main() -> std::io::Result<()> {
-    let args: Vec<String> = env::args().collect();
+    let args = CliParams::from_args();
+    println!("extract mode: {}", args.extract_mode);
+    //let args: Vec<String> = env::args().collect();
 
-    if args.len() > 1 { // 1st "argument" is always the binary name
-        println!("Arguments: {:?}", &args[1..]);
-    } else {
-        println!("No arguments provided. Program name: {}", args[0]);
+    // if args.len() > 1 { // 1st "argument" is always the binary name
+    //     println!("Arguments: {:?}", &args[1..]);
+    // } else {
+    //     println!("No arguments provided. Program name: {}", args[0]);
+    // }
+
+    if args.list_mode {
+        let file_name = &args.file_name;
+        let mut file = File::open(file_name).expect("Failed to open file");;
+        // let mut file = match file_result {
+        //     Ok(file) => file,
+        //     Err(error) => match error.kind() {
+        //         ErrorKind::NotFound => panic!("File '{}' not found", file_name),
+        //         other_error => panic!("Unexpected error opening the file: {:?}", other_error)
+        //     }
+        // };
+
+        // TODO: do something smarter than reading the entire file into memory, maybe a BufReader
+        let mut file_contents: Vec<u8> = Vec::new();
+        let file_size_in_bytes = file.read_to_end(&mut file_contents)?;
+        println!("Read all {} bytes from file '{}' successfully ", file_size_in_bytes, file_name);
+
+        let tar_header: &[u8] = &file_contents[..512];
+
+        let header_file_name = extract_value_from_null_terminated_sequence(&tar_header[..99]);
+
+        println!("File name from tarball: '{}'", bytes_to_str(header_file_name));
+
+        // TODO: verify checksum.
+
+        println!("Decimal checksum: {}", read_header_checksum_in_decimal(tar_header));
+        println!("Calculated checksum: {}", calculate_header_checksum(tar_header));
     }
-
-    let file_name = &args[1];
-    let mut file = File::open(file_name).expect("Failed to open file");;
-    // let mut file = match file_result {
-    //     Ok(file) => file,
-    //     Err(error) => match error.kind() {
-    //         ErrorKind::NotFound => panic!("File '{}' not found", file_name),
-    //         other_error => panic!("Unexpected error opening the file: {:?}", other_error)
-    //     }
-    // };
-
-    let mut file_contents: Vec<u8> = Vec::new();
-    let file_size_in_bytes = file.read_to_end(&mut file_contents)?;
-    println!("Read all {} bytes from file '{}' successfully ", file_size_in_bytes, file_name);
-
-    let tar_header: &[u8] = &file_contents[..512];
-
-    let header_file_name = extract_value_from_null_terminated_sequence(&tar_header[..99]);
-
-    println!("File name from tarball: '{}'", bytes_to_str(header_file_name));
-    
-    // TODO: verify checksum.
-
-    println!("Decimal checksum: {}", read_header_checksum_in_decimal(tar_header));
-    println!("Calculated checksum: {}", calculate_header_checksum(tar_header));
 
     Ok(())
 }
