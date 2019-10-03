@@ -48,7 +48,7 @@ fn main() -> std::io::Result<()> {
         println!("File name from tarball: '{}'", file_name_from_header);
 
         // TODO: verify checksum.
-        println!("Decimal checksum: {}", read_header_checksum_in_decimal(tar_header));
+        println!("Decimal checksum: {}", convert_octal_to_decimal(&tar_header[148..154]));
         println!("Calculated checksum: {}", calculate_header_checksum(tar_header));
 
         let file_size_bytes = convert_octal_to_decimal(&tar_header[124..135]);
@@ -74,36 +74,29 @@ fn main() -> std::io::Result<()> {
     Ok(())
 }
 
-// Tarball header checksums are stored in octal (!?!?), convert to decimal to make our life easier
-fn read_header_checksum_in_decimal(header: &[u8]) -> u32 {
-    let octal_checksum = bytes_to_str(&header[148..154]);
-    // println!("Octal checksum: '{}'", octal_checksum);
-    match u32::from_str_radix(octal_checksum, 8) {
-        Ok(n) => n,
-        Err(_) => {panic!("Could not parse octal checksum")}
-    }
-}
-
+// Most numbers in tarball header are stored in octal (!?!?), convert to decimal to make life easier
 fn convert_octal_to_decimal(slice: &[u8]) -> usize {
     let octal = bytes_to_str(slice);
-    // println!("Octal value: '{}'", octal);
     match usize::from_str_radix(octal, 8) {
         Ok(n) => n,
-        Err(_) => {panic!("Could not parse octal value")}
+        Err(std::num::ParseIntError { .. }) => {
+            // TODO: log value we failed on
+            panic!("Could not parse octal checksum")
+            }
     }
 }
 
 fn calculate_header_checksum(header: &[u8]) -> u32 {
     let mut calculated_checksum: u32 = 0;
     for b in &header[..148] {
-        calculated_checksum += *b as u32;
+        calculated_checksum += u32::from(*b) ;
     }
 
     // checksum bytes are taken to be ASCII spaces (decimal value 32)
     calculated_checksum += 8 * 32;
     
     for b in &header[156..512] {
-        calculated_checksum += *b as u32;
+        calculated_checksum += u32::from(*b);
     }
 
     calculated_checksum
