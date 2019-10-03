@@ -1,16 +1,19 @@
-pub fn index_of_last_byte_in_null_terminated_sequence(seq: &[u8]) -> usize {
-    assert!(seq.len() > 0);
+pub fn index_of_first_null_byte(seq: &[u8]) -> Option<usize> {
     let null_byte: u8 = 0x0;
     for (i, item) in seq.iter().enumerate() {
         if *item == null_byte {
             println!("Found null byte in position {}", i);
-            return i - 1;
+            return Some(i);
         }
     }
-    seq.len() - 1
+    None
 }
 
 // Given a null-terminated sequence of bytes, return a slice without the null bytes
-pub fn extract_value_from_null_terminated_sequence(seq: &[u8]) -> &[u8] {
-    &seq[..index_of_last_byte_in_null_terminated_sequence(seq) + 1]
+pub fn truncate_null_terminated_seq(seq: &[u8]) -> &[u8] {
+    let first_null_i = index_of_first_null_byte(seq);
+    match first_null_i {
+        Some(index) => &seq[..index],
+        None => seq
+    }
 }

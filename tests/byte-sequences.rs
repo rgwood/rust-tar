@@ -5,14 +5,16 @@ mod tests {
     
     #[test]
     fn can_find_last_byte_of_null_terminated_sequence() {
-        assert_eq!(index_of_last_byte_in_null_terminated_sequence(b"Hello\0\0\0"), 4);
-        assert_eq!(index_of_last_byte_in_null_terminated_sequence(b"Hello"), 4);
-        assert_eq!(index_of_last_byte_in_null_terminated_sequence(b"Hello\0\0\0World"), 4);
+        assert_eq!(index_of_first_null_byte(b"Hello\0\0\0"), Some(5));
+        assert_eq!(index_of_first_null_byte(b"Hello"), None);
+        assert_eq!(index_of_first_null_byte(b"Hello\0\0\0World"), Some(5));
     }
 
     #[test]
-    #[should_panic]
-    fn panic_if_trying_to_parse_empty_null_terminated_seq() {
-        index_of_last_byte_in_null_terminated_sequence(b"");
+    fn can_extract_byte_string_from_null_terminated_sequence() {
+        assert_eq!(truncate_null_terminated_seq(b"Hello\0\0\0"), b"Hello");
+        assert_eq!(truncate_null_terminated_seq(b"Hello"), b"Hello");
+        assert_eq!(truncate_null_terminated_seq(b""), b"");
     }
+
 }

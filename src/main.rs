@@ -43,7 +43,7 @@ fn main() -> std::io::Result<()> {
 
         let tar_header: &[u8] = &tarball_contents[..TAR_HEADER_LENGTH_IN_BYTES];
 
-        let file_name_from_header = bytes_to_str(extract_value_from_null_terminated_sequence(&tar_header[..99]));
+        let file_name_from_header = bytes_to_str(truncate_null_terminated_seq(&tar_header[..99]));
 
         println!("File name from tarball: '{}'", file_name_from_header);
 
