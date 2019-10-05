@@ -28,6 +28,14 @@ struct Header<'a> {
 }
 
 impl Header<'_> {
+    fn new(bytes: &[u8]) -> Header {
+        Header 
+        {bytes, 
+        file_name: bytes_to_str(truncate_null_terminated_seq(&bytes[..99])),
+        checksum: convert_octal_to_decimal(&bytes[148..154]),
+        file_size_in_bytes: convert_octal_to_decimal(&bytes[124..135])
+        }
+    }
 
     fn calculate_checksum(&self) -> usize {
         let mut calculated_checksum: usize = 0;
@@ -46,14 +54,7 @@ impl Header<'_> {
     }
 }
 
-fn parse_header(bytes: &[u8]) -> Header {
-    Header 
-    {bytes, 
-    file_name: bytes_to_str(truncate_null_terminated_seq(&bytes[..99])),
-    checksum: convert_octal_to_decimal(&bytes[148..154]),
-    file_size_in_bytes: convert_octal_to_decimal(&bytes[124..135])
-    }
-}
+
 
 const TAR_HEADER_LENGTH_IN_BYTES: usize = 512;
 
@@ -77,7 +78,7 @@ fn main() -> std::io::Result<()> {
         let file_size_in_bytes = tarball.read_to_end(&mut tarball_contents)?;
         println!("Read all {} bytes from file '{}' successfully ", file_size_in_bytes, tarball_filename);
 
-        let header = parse_header(&tarball_contents[..TAR_HEADER_LENGTH_IN_BYTES]);
+        let header = Header::new(&tarball_contents[..TAR_HEADER_LENGTH_IN_BYTES]);
 
         println!("File name from tarball: '{}'", header.file_name);
 
