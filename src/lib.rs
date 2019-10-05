@@ -2,7 +2,6 @@ pub fn index_of_first_null_byte(seq: &[u8]) -> Option<usize> {
     let null_byte: u8 = 0x0;
     for (i, item) in seq.iter().enumerate() {
         if *item == null_byte {
-            println!("Found null byte in position {}", i);
             return Some(i);
         }
     }
