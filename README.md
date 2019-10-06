@@ -14,7 +14,7 @@ Building a tool like this is a really good way to learn Rust syntax+features! So
 1. How to create iterators over arbitrary data
 1. How to parse+validate CLI parameters using [StructOpt](https://github.com/TeXitoi/structopt)
 1. Integration tests using [assert_cmd](https://github.com/assert-rs/assert_cmd)
-1. Rust's built-in [unit tests](blob/master/tests/byte-sequences.rs)
+1. Rust's built-in [unit tests](tests/byte-sequences.rs)
 1. File I/O
 1. Option and Result types (I *love* not having to deal with nullable types and exceptions)
 
