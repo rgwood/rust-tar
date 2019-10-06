@@ -1,5 +1,5 @@
 // Because this one is super annoying during development
-#![allow(dead_code)]
+// #![allow(dead_code)]
 use std::fs::File;
 use std::io::prelude::*;
 use std::str;
@@ -20,6 +20,8 @@ struct CliParams {
     file_name: String
 }
 
+const BLOCK_SIZE: usize = 512;
+
 struct Header<'a> {
     bytes: &'a[u8],
     file_name: &'a str,
@@ -29,12 +31,15 @@ struct Header<'a> {
 
 impl Header<'_> {
     fn new(bytes: &[u8]) -> Header {
-        Header 
-        {bytes, 
-        file_name: bytes_to_str(truncate_null_terminated_seq(&bytes[..99])),
-        checksum: convert_octal_to_decimal(&bytes[148..154]),
-        file_size_in_bytes: convert_octal_to_decimal(&bytes[124..135])
-        }
+        let ret = Header {
+            bytes, 
+            file_name: bytes_to_str(truncate_null_terminated_seq(&bytes[..99])),
+            checksum: convert_octal_to_decimal(&bytes[148..154]),
+            file_size_in_bytes: convert_octal_to_decimal(&bytes[124..135])
+        };
+        ret.verify_checksum();
+
+        ret
     }
 
     fn calculate_checksum(&self) -> usize {
@@ -46,28 +51,62 @@ impl Header<'_> {
         // checksum bytes are taken to be ASCII spaces (decimal value 32)
         calculated_checksum += 8 * 32;
 
-        for b in &self.bytes[156..512] {
+        for b in &self.bytes[156..] {
             calculated_checksum += usize::from(*b);
         }   
 
         calculated_checksum
     }
+
+    fn verify_checksum(&self) {
+        let calculated_checksum = self.calculate_checksum();
+        if self.checksum != calculated_checksum {
+            panic!("Invalid checksum {} for file '{}' in tarball. We calculated {}", self.checksum, self.file_name, calculated_checksum);
+        }
+    }
 }
 
+struct TarballEntry<'a> {
+    header: Header<'a>,
+    file_bytes: &'a [u8]
+}
 
+struct TarballIterator<'a> {
+    bytes: &'a [u8],
+    byte_offset: usize
+}
 
-const TAR_HEADER_LENGTH_IN_BYTES: usize = 512;
+impl<'a> Iterator for TarballIterator<'a> {
+    type Item = TarballEntry<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.byte_offset+BLOCK_SIZE >= self.bytes.len() {
+            return None;
+        }
+
+        let header_bytes = &self.bytes[self.byte_offset..self.byte_offset+BLOCK_SIZE];
+
+        // If we see a record that is all empty bytes, we're done
+        if header_bytes.iter().all(|&i| i == 0) {
+            return None;
+        }
+
+        let header = Header::new(header_bytes);
+        self.byte_offset += BLOCK_SIZE;
+
+        let file_size = header.file_size_in_bytes;
+        let file_bytes = &self.bytes[self.byte_offset..self.byte_offset+file_size];
+        self.byte_offset += file_size;
+
+        // Round up to a multiple of 512
+        self.byte_offset += BLOCK_SIZE - (file_size % BLOCK_SIZE);
+        
+        Some(TarballEntry {header, file_bytes})
+    }
+}
 
 fn main() -> std::io::Result<()> {
     let args = CliParams::from_args();
-    println!("extract mode: {}", args.extract_mode);
-    //let args: Vec<String> = env::args().collect();
-
-    // if args.len() > 1 { // 1st "argument" is always the binary name
-    //     println!("Arguments: {:?}", &args[1..]);
-    // } else {
-    //     println!("No arguments provided. Program name: {}", args[0]);
-    // }
 
     if args.list_mode || args.extract_mode {
         let tarball_filename = &args.file_name;
@@ -76,51 +115,27 @@ fn main() -> std::io::Result<()> {
         // TODO: do something smarter than reading the entire file into memory, maybe a BufReader
         let mut tarball_contents: Vec<u8> = Vec::new();
         let file_size_in_bytes = tarball.read_to_end(&mut tarball_contents)?;
-        println!("Read all {} bytes from file '{}' successfully ", file_size_in_bytes, tarball_filename);
+        println!("Read all {} bytes from tarball successfully ", file_size_in_bytes);
 
-        let header = Header::new(&tarball_contents[..TAR_HEADER_LENGTH_IN_BYTES]);
+        let iterator = TarballIterator {bytes: &tarball_contents[..], byte_offset: 0};
+        for entry in iterator {
+            let header = entry.header;
+            println!("Processing file header: '{}'", header.file_name);
+            println!("  Decimal checksum: {}", header.checksum);
+            println!("  Calculated checksum: {}", header.calculate_checksum());
+            println!("  File size in bytes: {}", header.file_size_in_bytes);
+            println!("  File contents: {}", bytes_to_str(entry.file_bytes));
 
-        println!("File name from tarball: '{}'", header.file_name);
-
-        // TODO: verify checksum.
-        println!("Decimal checksum: {}", header.checksum);
-        println!("Calculated checksum: {}", header.calculate_checksum());
-
-        // let file_size_bytes = convert_octal_to_decimal(&tar_header[124..135]);
-
-        println!("File size in bytes: {}", header.file_size_in_bytes);
-
-        let file_contents = &tarball_contents[TAR_HEADER_LENGTH_IN_BYTES..TAR_HEADER_LENGTH_IN_BYTES+header.file_size_in_bytes];
-
-        println!("File contents: {}", bytes_to_str(file_contents));
-
-        if args.extract_mode {
-            // let path = Path::new(file_name_from_header);
-            let mut extracted_file = OpenOptions::new()
-                            .write(true)
-                            .create_new(true)
-                            .open(header.file_name)?;
-            extracted_file.write_all(file_contents)?;
-            println!("Extracted file {} successfully", header.file_name);
+            if args.extract_mode {
+                let mut extracted_file = OpenOptions::new()
+                                .write(true)
+                                .create_new(true)
+                                .open(header.file_name)?;
+                extracted_file.write_all(entry.file_bytes)?;
+                println!("  Extracted file {} successfully", header.file_name);
+            }
         }
-
     }
 
     Ok(())
-}
-
-// Most numbers in tarball header are stored in octal (!?!?), convert to decimal to make life easier
-fn convert_octal_to_decimal(slice: &[u8]) -> usize {
-    let octal = bytes_to_str(slice);
-    match usize::from_str_radix(octal, 8) {
-        Ok(n) => n,
-        Err(std::num::ParseIntError { .. }) => {
-            // TODO: log value we failed on
-            panic!("Could not parse octal checksum")
-            }
-    }
-}
-
-fn bytes_to_str(bytes: &[u8]) -> &str {
-    str::from_utf8(bytes).expect("Could not convert file name header to string")
 }
