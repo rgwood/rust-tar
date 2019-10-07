@@ -6,6 +6,7 @@ use std::str;
 use structopt::StructOpt;
 use tarlib::*;
 use std::fs::OpenOptions;
+use std::time::{Duration, Instant};
 
 #[derive(StructOpt)]
 struct CliParams {
@@ -86,10 +87,12 @@ impl<'a> Iterator for TarballIterator<'a> {
 
         let header_bytes = &self.bytes[self.byte_offset..self.byte_offset+BLOCK_SIZE];
 
+        // let zero_byte_check_start = Instant::now();
         // If we see a record that is all empty bytes, we're done
         if header_bytes.iter().all(|&i| i == 0) {
             return None;
         }
+        // println!("Time to check whether 512b block is empty: {:?}", Instant::now().duration_since(zero_byte_check_start));
 
         let header = Header::new(header_bytes);
         self.byte_offset += BLOCK_SIZE;
@@ -114,8 +117,9 @@ fn main() -> std::io::Result<()> {
 
         // TODO: do something smarter than reading the entire file into memory, maybe a BufReader
         let mut tarball_contents: Vec<u8> = Vec::new();
+        let read_start = Instant::now();
         let file_size_in_bytes = tarball.read_to_end(&mut tarball_contents)?;
-        println!("Read all {} bytes from tarball successfully ", file_size_in_bytes);
+        println!("Read all {} bytes from tarball successfully in {:?}", file_size_in_bytes, Instant::now().duration_since(read_start));
 
         let iterator = TarballIterator {bytes: &tarball_contents[..], byte_offset: 0};
         for entry in iterator {
