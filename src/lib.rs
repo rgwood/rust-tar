@@ -15,7 +15,7 @@ pub fn truncate_null_terminated_seq(seq: &[u8]) -> &[u8] {
     let first_null_i = index_of_first_null_byte(seq);
     match first_null_i {
         Some(index) => &seq[..index],
-        None => seq
+        None => seq,
     }
 }
 
@@ -27,7 +27,7 @@ pub fn convert_octal_to_decimal(slice: &[u8]) -> usize {
         Err(std::num::ParseIntError { .. }) => {
             // TODO: log value we failed on
             panic!("Could not parse octal checksum")
-            }
+        }
     }
 }
 
